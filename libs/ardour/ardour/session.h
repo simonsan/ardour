@@ -2234,6 +2234,7 @@ private:
 	bool _had_destructive_tracks;
 
 	std::string unnamed_file_name () const;
+	void setup_thread_local_variables ();
 };
 
 
