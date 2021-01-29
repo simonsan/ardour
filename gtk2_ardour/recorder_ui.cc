@@ -521,42 +521,35 @@ RecorderUI::meter_area_layout ()
 {
 	container_clear (_meter_table);
 
-	bool resize = false;
-	int N_COL = -1;
 	int col   = 0;
 	int row   = 0;
 	int spc   = 2;
 
+	int width = 1;
 	std::set <boost::shared_ptr<InputPort>, InputPortPtrSort> ips;
 	for (InputPortMap::const_iterator i = _input_ports.begin (); i != _input_ports.end (); ++i) {
-		ips.insert (i->second);
+		boost::shared_ptr<InputPort> const& ip = i->second;
+		ip->show ();
+		Requisition r = ip->size_request ();
+		width = std::max (width, r.width + spc * 2);
+		ips.insert (ip);
 	}
+
+	_meter_area_cols = calc_columns (width, _meter_area.get_width ());
 
 	for (set<boost::shared_ptr<InputPort> >::const_iterator i = ips.begin (); i != ips.end (); ++i) {
 		boost::shared_ptr<InputPort> const& ip = *i;
-
-		ip->show ();
 		_meter_table.attach (*ip, col, col + 1, row, row + 1, SHRINK|FILL, SHRINK, spc, spc);
 
-		Requisition r = ip->size_request ();
-		if (_meter_box_width != r.width + spc * 2) {
-			_meter_box_width = r.width + spc * 2;
-			resize = true;
-		}
-		if (N_COL < 0) {
-			N_COL = calc_columns (_meter_box_width, _meter_area.get_width ());
-		}
-
-		if (++col >= N_COL) {
+		if (++col >= _meter_area_cols) {
 			col = 0;
 			++row;
 		}
 	}
 
-	if (N_COL > 0) {
-		_meter_area_cols = N_COL;
-	}
-	if (resize) {
+	if (_meter_box_width != width) {
+		printf ("RE-LAYOUT METER AREA\n");
+		_meter_box_width = width;
 		_meter_area.queue_resize ();
 	}
 }
