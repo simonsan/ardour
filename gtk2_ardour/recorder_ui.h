@@ -64,6 +64,7 @@ public:
 	Gtk::Window* use_own_window (bool and_fill_it);
 
 	void spill_port (std::string const&);
+	void add_track (std::string const&);
 
 private:
 	void load_bindings ();
@@ -194,7 +195,7 @@ private:
 			ArdourWidgets::ArdourButton _spill_button;
 			ArdourWidgets::ArdourButton _name_button;
 			Gtk::Label                  _name_label;
-			Gtk::Label                  _connection_label;
+			ArdourWidgets::ArdourButton _add_button;
 			std::string                 _port_name;
 			ARDOUR::WeakRouteList       _connected_routes;
 

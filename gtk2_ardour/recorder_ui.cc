@@ -640,15 +640,17 @@ RecorderUI::set_connections (string const& p)
 }
 
 void
+RecorderUI::add_track (string const& p)
+{
+	new_track_for_port (_input_ports[p]->data_type (), p);
+}
+
+void
 RecorderUI::spill_port (string const& p)
 {
 	bool ok = false;
 	if (_input_ports[p]->spilled ()) {
 		ok = _input_ports[p]->spill (true);
-		if (!ok) {
-			new_track_for_port (_input_ports[p]->data_type (), p);
-			return;
-		}
 	}
 
 	bool update;
@@ -962,7 +964,7 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	, _spill_button ("", ArdourButton::default_elements, true)
 	, _name_button (name)
 	, _name_label ("", ALIGN_CENTER, ALIGN_CENTER, false)
-	, _connection_label ("0", ALIGN_CENTER, ALIGN_CENTER, false)
+	, _add_button ("+", ArdourButton::default_elements, false)
 	, _port_name (name)
 {
 	if (!_size_groups_initialized) {
@@ -980,6 +982,11 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	_spill_button.set_sizing_text(_("(none)"));
 	_spill_button.signal_clicked.connect (sigc::bind (sigc::mem_fun (*parent, &RecorderUI::spill_port), name));
 
+	_add_button.set_name ("generic button");
+	_add_button.set_sizing_text("+");
+	_add_button.signal_clicked.connect (sigc::bind (sigc::mem_fun (*parent, &RecorderUI::add_track), name));
+	set_tooltip (_add_button, _("Add a track for this input port."));
+
 	int nh = 120 * UIConfiguration::instance ().get_ui_scale ();
 	_name_button.set_corner_radius (2);
 	_name_button.set_name ("meterbridge label");
@@ -995,8 +1002,9 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 
 	set_tooltip (_name_button, _("Set or edit the custom name for this input port."));
 
+	vbox_c->set_spacing (2);
 	vbox_c->pack_start (_spill_button, true, true);
-	vbox_c->pack_start (_connection_label, true, true);
+	vbox_c->pack_start (_add_button, true, true);
 
 	vbox_n->pack_start (_name_button, true, true);
 #if 0 // MIXBUS ?
