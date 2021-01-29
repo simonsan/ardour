@@ -86,7 +86,7 @@ private:
 	void update_rec_table_layout ();
 	void update_spacer_width (Gtk::Allocation&, TrackRecordAxis*);
 
-	void set_connection_count (std::string const&);
+	void set_connections (std::string const&);
 	void port_connected_or_disconnected (std::string, std::string);
 	void port_pretty_name_changed (std::string);
 
@@ -102,6 +102,7 @@ private:
 	void peak_reset ();
 
 	void update_sensitivity ();
+	void update_recordstate ();
 	void new_track_for_port (ARDOUR::DataType, std::string const&);
 
 	static int calc_columns (int child_width, int parent_width);
@@ -161,10 +162,11 @@ private:
 			~InputPort ();
 
 			void set_frame_label (std::string const&);
-			void set_cnt (uint32_t);
+			void set_connections (ARDOUR::WeakRouteList);
 			void setup_name ();
 			bool spill (bool);
 			bool spilled () const;
+			void update_rec_stat ();
 
 			ARDOUR::DataType data_type () const;
 			std::string const& name () const;
@@ -194,7 +196,7 @@ private:
 			Gtk::Label                  _name_label;
 			Gtk::Label                  _connection_label;
 			std::string                 _port_name;
-			uint32_t                    _n_connections;
+			ARDOUR::WeakRouteList       _connected_routes;
 
 			static bool                         _size_groups_initialized;
 			static Glib::RefPtr<Gtk::SizeGroup> _name_size_group;

@@ -291,6 +291,7 @@ RecorderUI::set_session (Session* s)
 	_session->StartTimeChanged.connect (_session_connections, invalidator (*this), boost::bind (&RecorderUI::gui_extents_changed, this), gui_context());
 	_session->EndTimeChanged.connect (_session_connections, invalidator (*this), boost::bind (&RecorderUI::gui_extents_changed, this), gui_context());
 	_session->RecordStateChanged.connect (_session_connections, invalidator (*this), boost::bind (&RecorderUI::update_sensitivity, this), gui_context());
+	_session->UpdateRouteRecordState.connect (_session_connections, invalidator (*this), boost::bind (&RecorderUI::update_recordstate, this), gui_context());
 
 	update_title ();
 	initial_track_display ();
@@ -349,6 +350,14 @@ RecorderUI::update_sensitivity ()
 }
 
 void
+RecorderUI::update_recordstate ()
+{
+	for (InputPortMap::const_iterator i = _input_ports.begin (); i != _input_ports.end (); ++i) {
+		i->second->update_rec_stat ();
+	}
+}
+
+void
 RecorderUI::parameter_changed (string const& p)
 {
 }
@@ -375,14 +384,14 @@ RecorderUI::start_updating ()
 
 	for (PortManager::AudioInputPorts::const_iterator i = aip.begin (); i != aip.end (); ++i) {
 		_input_ports[i->first] = boost::shared_ptr<RecorderUI::InputPort> (new InputPort (i->first, DataType::AUDIO, this));
-		set_connection_count (i->first);
+		set_connections (i->first);
 	}
 
 	/* MIDI */
 	PortManager::MIDIInputPorts const mip (AudioEngine::instance ()->midi_input_ports ());
 	for (PortManager::MIDIInputPorts::const_iterator i = mip.begin (); i != mip.end (); ++i) {
 		_input_ports[i->first] = boost::shared_ptr<RecorderUI::InputPort> (new InputPort (i->first, DataType::MIDI, this));
-		set_connection_count (i->first);
+		set_connections (i->first);
 	}
 
 	update_io_widget_labels ();
@@ -409,7 +418,7 @@ RecorderUI::add_or_remove_io (DataType dt, vector<string> ports, bool add)
 	if (add) {
 		for (vector<string>::const_iterator i = ports.begin (); i != ports.end (); ++i) {
 			_input_ports[*i] = boost::shared_ptr<RecorderUI::InputPort> (new InputPort (*i, dt, this));
-			set_connection_count (*i);
+			set_connections (*i);
 		}
 	} else {
 		for (vector<string>::const_iterator i = ports.begin (); i != ports.end (); ++i) {
@@ -573,10 +582,10 @@ void
 RecorderUI::port_connected_or_disconnected (string p1, string p2)
 {
 	if (_input_ports.find (p1) != _input_ports.end ()) {
-		set_connection_count (p1);
+		set_connections (p1);
 	}
 	if (_input_ports.find (p2) != _input_ports.end ()) {
-		set_connection_count (p2);
+		set_connections (p2);
 	}
 }
 
@@ -608,22 +617,22 @@ RecorderUI::gui_extents_changed ()
 }
 
 void
-RecorderUI::set_connection_count (string const& p)
+RecorderUI::set_connections (string const& p)
 {
 	if (!_session) {
 		return;
 	}
 
-	uint32_t cnt = 0;
+	WeakRouteList wrl;
 
 	boost::shared_ptr<RouteList> rl = _session->get_tracks ();
 	for (RouteList::const_iterator r = rl->begin(); r != rl->end(); ++r) {
 		if ((*r)->input()->connected_to (p)) {
-			++cnt;
+			wrl.push_back (*r);
 		}
 	}
 
-	_input_ports[p]->set_cnt (cnt);
+	_input_ports[p]->set_connections (wrl);
 
 	// TODO: think.
 	// only clear when port is spilled and cnt == 0 ?
@@ -962,7 +971,6 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	, _name_label ("", ALIGN_CENTER, ALIGN_CENTER, false)
 	, _connection_label ("0", ALIGN_CENTER, ALIGN_CENTER, false)
 	, _port_name (name)
-	, _n_connections (0)
 {
 	if (!_size_groups_initialized) {
 		_size_groups_initialized = true;
@@ -1024,8 +1032,9 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	_frame.add (_alignment);
 	_frame.set_border_width (3);
 	_frame.set_padding (3);
-	_frame.set_edge_color (0x000000ff); // black
 	_frame.modify_bg (Gtk::STATE_NORMAL, bg);
+
+	update_rec_stat ();
 
 	add (_frame);
 	show_all ();
@@ -1066,9 +1075,31 @@ RecorderUI::InputPort::set_frame_label (std::string const& lbl)
 }
 
 void
-RecorderUI::InputPort::set_cnt (uint32_t cnt)
+RecorderUI::InputPort::update_rec_stat ()
 {
-	_n_connections = cnt;
+	bool armed = false;
+	for (WeakRouteList::const_iterator r = _connected_routes.begin(); r != _connected_routes.end(); ++r) {
+		boost::shared_ptr<Route> rt = r->lock ();
+		if (!rt || !rt->rec_enable_control ()) {
+			continue;
+		}
+		if (rt->rec_enable_control ()->get_value ()) {
+			armed = true;
+			break;
+		}
+	}
+	if (armed) {
+		_frame.set_edge_color (0xff0000ff); // black
+	} else {
+		_frame.set_edge_color (0x000000ff); // black
+	}
+}
+
+void
+RecorderUI::InputPort::set_connections (WeakRouteList wrl)
+{
+	_connected_routes = wrl;
+	size_t cnt = wrl.size ();
 	_connection_label.set_text (PBD::to_string (cnt));
 
 	if (cnt > 0) {
@@ -1078,6 +1109,8 @@ RecorderUI::InputPort::set_cnt (uint32_t cnt)
 		_spill_button.set_elements (ArdourButton::Element (ArdourButton::Edge|ArdourButton::Body));
 		set_tooltip (_spill_button, _("Create a new track connected to this source."));
 	}
+
+	update_rec_stat ();
 }
 
 void
@@ -1132,7 +1165,7 @@ RecorderUI::InputPort::spill (bool en)
 		act = false;
 	}
 
-	if (_n_connections == 0) {
+	if (_connected_routes.size () == 0) {
 		act = false;
 	}
 
