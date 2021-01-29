@@ -959,7 +959,7 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	: _dt (dt)
 	, _monitor (dt, AudioEngine::instance()->sample_rate ())
 	, _alignment (0.5, 0.5, 0, 0)
-	, _spill_button ("", ArdourButton::just_led_default_elements, true)
+	, _spill_button ("", ArdourButton::default_elements, true)
 	, _name_button (name)
 	, _name_label ("", ALIGN_CENTER, ALIGN_CENTER, false)
 	, _connection_label ("0", ALIGN_CENTER, ALIGN_CENTER, false)
@@ -977,9 +977,7 @@ RecorderUI::InputPort::InputPort (string const& name, DataType dt, RecorderUI* p
 	VBox* vbox_n = manage (new VBox);
 
 	_spill_button.set_name ("generic button");
-	_spill_button.set_can_focus (true);
-	_spill_button.set_led_left (true);
-	_spill_button.set_tweaks(ArdourButton::OccasionalLED);
+	_spill_button.set_sizing_text(_("(none)"));
 	_spill_button.signal_clicked.connect (sigc::bind (sigc::mem_fun (*parent, &RecorderUI::spill_port), name));
 
 	int nh = 120 * UIConfiguration::instance ().get_ui_scale ();
@@ -1093,14 +1091,15 @@ RecorderUI::InputPort::set_connections (WeakRouteList wrl)
 {
 	_connected_routes = wrl;
 	size_t cnt = wrl.size ();
-	_connection_label.set_text (PBD::to_string (cnt));
 
 	if (cnt > 0) {
-		_spill_button.set_elements (ArdourButton::just_led_default_elements);
-		set_tooltip (_spill_button, _("Only display tracks that are received input from this source."));
+		_spill_button.set_text (string_compose("(%1)", PBD::to_string (cnt)));
+		_spill_button.set_sensitive (true);
+		set_tooltip (_spill_button, string_compose(_("This port feeds %1 tracks. Click to show them."), PBD::to_string (cnt)));
 	} else {
-		_spill_button.set_elements (ArdourButton::Element (ArdourButton::Edge|ArdourButton::Body));
-		set_tooltip (_spill_button, _("Create a new track connected to this source."));
+		_spill_button.set_text ("(none)");
+		_spill_button.set_sensitive (false);
+		set_tooltip (_spill_button, _("This port is not feeding any tracks."));
 	}
 
 	update_rec_stat ();
